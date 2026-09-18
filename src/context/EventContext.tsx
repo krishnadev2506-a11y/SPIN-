@@ -46,6 +46,11 @@ export interface SituationAssignment {
   timestamp: string;
 }
 
+export interface BatchAssignmentResult {
+  teamName: string;
+  title: string;
+}
+
 interface EventContextProps {
   teams: Team[];
   challenges: Challenge[];
@@ -69,6 +74,8 @@ interface EventContextProps {
   resetEntireEvent: () => void;
   assignSituation: (teamId: string, situationId: string) => void;
   undoLastSituationAssignment: () => void;
+  assignAllFeatureChallenges: () => BatchAssignmentResult[];
+  assignAllSituations: () => BatchAssignmentResult[];
 }
 
 const CHALLENGE_VERSION_KEY = 'fhc_challenges_version';
@@ -400,6 +407,52 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     setSituationAssignments(remainingAssignments);
   };
 
+  const assignAllFeatureChallenges = (): BatchAssignmentResult[] => {
+    const eligibleTeams = teams.filter(team => !team.assignedChallengeId);
+    const timestamp = new Date().toISOString();
+    const additions: Assignment[] = [];
+    const assignedIds = new Map<string, string>();
+
+    eligibleTeams.forEach(team => {
+      const priorTitles = new Set(assignments.filter(item => item.teamId === team.id).map(item => item.challengeTitle));
+      const eligiblePool = challenges.filter(challenge =>
+        !priorTitles.has(challenge.title) &&
+        Object.values(challenge.applicability).some(level => level === 'HIGH' || level === 'MEDIUM')
+      );
+      const selected = eligiblePool[Math.floor(Math.random() * eligiblePool.length)];
+      if (!selected) return;
+      assignedIds.set(team.id, selected.id);
+      additions.push({ id: crypto.randomUUID(), teamId: team.id, teamName: team.name, challengeId: selected.id, challengeTitle: selected.title, timestamp });
+    });
+
+    if (additions.length) {
+      setTeams(previous => previous.map(team => assignedIds.has(team.id) ? { ...team, assignedChallengeId: assignedIds.get(team.id), assignedAt: timestamp } : team));
+      setAssignments(previous => [...additions, ...previous]);
+      setCurrentTeamId('');
+    }
+    return additions.map(item => ({ teamName: item.teamName, title: item.challengeTitle }));
+  };
+
+  const assignAllSituations = (): BatchAssignmentResult[] => {
+    const eligibleTeams = teams.filter(team => !situationAssignments.some(item => item.teamId === team.id));
+    const timestamp = new Date().toISOString();
+    const additions: SituationAssignment[] = [];
+
+    eligibleTeams.forEach(team => {
+      const priorTitles = new Set(situationAssignments.filter(item => item.teamId === team.id).map(item => item.situationTitle));
+      const eligiblePool = situationChallenges.filter(situation =>
+        !priorTitles.has(situation.title) &&
+        Object.values(situation.applicability).some(level => level === 'HIGH' || level === 'MEDIUM')
+      );
+      const selected = eligiblePool[Math.floor(Math.random() * eligiblePool.length)];
+      if (!selected) return;
+      additions.push({ id: crypto.randomUUID(), teamId: team.id, teamName: team.name, situationId: selected.id, situationTitle: selected.title, timestamp });
+    });
+
+    if (additions.length) setSituationAssignments(previous => [...additions, ...previous]);
+    return additions.map(item => ({ teamName: item.teamName, title: item.situationTitle }));
+  };
+
   return (
     <EventContext.Provider value={{
       teams,
@@ -423,7 +476,9 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       undoLastAssignment,
       resetEntireEvent,
       assignSituation,
-      undoLastSituationAssignment
+      undoLastSituationAssignment,
+      assignAllFeatureChallenges,
+      assignAllSituations
     }}>
       {children}
     </EventContext.Provider>

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useEvent } from '../../context/EventContext';
+import type { BatchAssignmentResult } from '../../context/EventContext';
 import type { Challenge } from '../../context/EventContext';
 import type { SituationChallenge } from '../../data/situationChallenges';
 import { SpinningWheel } from './SpinningWheel';
 import { RevealOverlay } from './RevealOverlay';
 import { SituationRevealOverlay } from './SituationRevealOverlay';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { BatchResultsOverlay } from './BatchResultsOverlay';
+import { ArrowLeft, Sparkles, WandSparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PresentationModeProps {
@@ -13,11 +15,12 @@ interface PresentationModeProps {
 }
 
 export const PresentationMode: React.FC<PresentationModeProps> = ({ onClose }) => {
-  const { teams, currentTeamId, assignChallenge, assignSituation, setCurrentTeamId } = useEvent();
+  const { teams, currentTeamId, assignChallenge, assignSituation, setCurrentTeamId, assignAllFeatureChallenges, assignAllSituations, situationAssignments } = useEvent();
   const [winningChallenge, setWinningChallenge] = useState<Challenge | null>(null);
   const [winningSituation, setWinningSituation] = useState<SituationChallenge | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelMode, setWheelMode] = useState<'feature' | 'situation'>('feature');
+  const [batchResults, setBatchResults] = useState<BatchAssignmentResult[] | null>(null);
 
   const currentTeam = teams.find(t => t.id === currentTeamId);
 
@@ -44,6 +47,16 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({ onClose }) =
         setWinningSituation(null);
       }
     }
+  };
+
+  const remainingCount = wheelMode === 'feature'
+    ? teams.filter(team => !team.assignedChallengeId).length
+    : teams.filter(team => !situationAssignments.some(item => item.teamId === team.id)).length;
+
+  const handleBulkSpin = () => {
+    if (isSpinning) return;
+    const results = wheelMode === 'feature' ? assignAllFeatureChallenges() : assignAllSituations();
+    if (results.length) setBatchResults(results);
   };
 
   // Either phase can be run for any selected team; history prevents repeats per phase.
@@ -151,6 +164,13 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({ onClose }) =
                   </select>
                 </div>
               )}
+              <div className="border-t border-white/10 pt-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/35">One-click distribution</p>
+                <button onClick={handleBulkSpin} disabled={remainingCount === 0 || isSpinning} className={`w-full rounded-xl px-4 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${wheelMode === 'feature' ? 'bg-brand-purple-600 hover:bg-brand-purple-500' : 'bg-orange-600 hover:bg-orange-500'}`}>
+                  <span className="flex items-center justify-center gap-2"><WandSparkles className="h-4 w-4" />Spin all remaining teams ({remainingCount})</span>
+                </button>
+                <p className="mt-2 text-[11px] leading-relaxed text-white/35">Assigns one random eligible {wheelMode === 'feature' ? 'feature' : 'situation'} to every unassigned team and keeps existing results unchanged.</p>
+              </div>
             </div>
           </div>
 
@@ -185,6 +205,7 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({ onClose }) =
             onSave={handleSaveAssignment}
           />
         )}
+        {batchResults && <BatchResultsOverlay phase={wheelMode} results={batchResults} onClose={() => setBatchResults(null)} />}
       </AnimatePresence>
     </div>
   );
