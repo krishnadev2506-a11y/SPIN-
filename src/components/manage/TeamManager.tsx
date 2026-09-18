@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { parseCSV, exportToCSV } from '../../utils/csvHelper';
-import { Plus, Trash2, Edit3, Upload, Download, Lock, CheckCircle, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit3, Upload, Download, CheckCircle, Users, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const TeamManager: React.FC = () => {
@@ -10,8 +10,7 @@ export const TeamManager: React.FC = () => {
     addTeam,
     editTeam,
     deleteTeam,
-    importTeamsCSV,
-    isEventStarted
+    importTeamsCSV
   } = useEvent();
 
   const [newTeamName, setNewTeamName] = useState('');
@@ -24,7 +23,6 @@ export const TeamManager: React.FC = () => {
 
   const handleAddTeam = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEventStarted) return;
     setFormError(null);
     setImportResults(null);
 
@@ -37,14 +35,12 @@ export const TeamManager: React.FC = () => {
   };
 
   const handleStartEdit = (id: string, name: string) => {
-    if (isEventStarted) return;
     setEditingId(id);
     setEditingName(name);
     setFormError(null);
   };
 
   const handleSaveEdit = (id: string) => {
-    if (isEventStarted) return;
     const result = editTeam(id, editingName);
     if (result.success) {
       setEditingId(null);
@@ -72,7 +68,6 @@ export const TeamManager: React.FC = () => {
   };
 
   const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isEventStarted) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -140,20 +135,6 @@ export const TeamManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Lock banner if event started */}
-      {isEventStarted && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-xl flex items-start space-x-3 text-sm"
-        >
-          <Lock className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold">Team Configuration Locked:</span> The event has already started (challenges are assigned). Adding, modifying, deleting, or importing teams is disabled to protect active status.
-          </div>
-        </motion.div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Side: Add Team and CSV Imports */}
         <div className="lg:col-span-1 space-y-6">
@@ -165,8 +146,8 @@ export const TeamManager: React.FC = () => {
               <div>
                 <input
                   type="text"
-                  placeholder={isEventStarted ? "Locked" : "Enter unique team name..."}
-                  disabled={isEventStarted || teams.length >= 36}
+                  placeholder="Enter unique team name..."
+                  disabled={teams.length >= 36}
                   value={newTeamName}
                   onChange={e => {
                     setNewTeamName(e.target.value);
@@ -178,9 +159,9 @@ export const TeamManager: React.FC = () => {
 
               <motion.button
                 type="submit"
-                disabled={isEventStarted || !newTeamName.trim() || teams.length >= 36}
-                whileHover={{ scale: (isEventStarted || !newTeamName.trim()) ? 1 : 1.02 }}
-                whileTap={{ scale: (isEventStarted || !newTeamName.trim()) ? 1 : 0.98 }}
+                disabled={!newTeamName.trim() || teams.length >= 36}
+                whileHover={{ scale: !newTeamName.trim() ? 1 : 1.02 }}
+                whileTap={{ scale: !newTeamName.trim() ? 1 : 0.98 }}
                 className="w-full bg-gradient-to-r from-brand-purple-600 to-brand-purple-500 hover:from-brand-purple-500 hover:to-brand-purple-400 disabled:from-dark-800 disabled:to-dark-800 disabled:border-white/5 border border-transparent disabled:text-white/30 disabled:cursor-not-allowed py-3 rounded-xl text-sm font-bold shadow-lg hover:shadow-glow-purple flex items-center justify-center space-x-2 transition-all"
               >
                 <Plus className="w-4 h-4" />
@@ -215,13 +196,11 @@ export const TeamManager: React.FC = () => {
                   accept=".csv"
                   ref={fileInputRef}
                   onChange={handleCSVImport}
-                  disabled={isEventStarted}
                   className="hidden"
                 />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isEventStarted}
                   className="w-full bg-dark-900 border border-white/10 hover:border-brand-cyan-500/40 text-white disabled:opacity-50 disabled:hover:border-white/10 disabled:cursor-not-allowed py-3 rounded-xl text-sm font-semibold flex items-center justify-center space-x-2 transition-all"
                 >
                   <Upload className="w-4 h-4 text-brand-cyan-400" />
@@ -331,7 +310,6 @@ export const TeamManager: React.FC = () => {
                           <>
                             <button
                               onClick={() => handleStartEdit(team.id, team.name)}
-                              disabled={isEventStarted}
                               className="p-2 text-white/50 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 rounded-lg transition-all"
                               title="Edit Team"
                             >
@@ -339,7 +317,6 @@ export const TeamManager: React.FC = () => {
                             </button>
                             <button
                               onClick={() => deleteTeam(team.id)}
-                              disabled={isEventStarted}
                               className="p-2 text-white/50 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-red-500/10 rounded-lg transition-all"
                               title="Delete Team"
                             >

@@ -74,6 +74,14 @@ interface EventContextProps {
 const CHALLENGE_VERSION_KEY = 'fhc_challenges_version';
 const SITUATION_VERSION_KEY = 'fhc_situations_version';
 
+const PRELOADED_TEAM_NAMES = [
+  'Sync6', 'Nissaramm', 'Pentabyte', 'Xeva', 'Decoders', 'Iron Titans', 'Breaking Bytes',
+  'Storm Breakers', 'Command Line Crew', 'HEXAHACK', 'Tech Divas', 'French toast',
+  'VIBE CODERS', 'Nexus', 'CoffeePowder', 'Kernel', 'Runtime terrors', 'Code Blooded',
+  'Nexora', 'Incubug', 'Bay Route', 'Syntax_six', 'R00T', 'Codzilla', 'Altf4',
+  'SQUAREONE', '4 Real', 'Hackmates', 'MonoChrome', 'Cyber Nexus', 'Adhil and Co', 'Carbon'
+];
+
 function readJson<T>(key: string, fallback: T): T {
   const saved = localStorage.getItem(key);
   if (!saved) return fallback;
@@ -82,6 +90,15 @@ function readJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function loadTeams(): Team[] {
+  const saved = readJson<Team[]>('fhc_teams', []);
+  const existing = new Set(saved.map(team => team.name.trim().toLowerCase()));
+  const additions = PRELOADED_TEAM_NAMES
+    .filter(name => !existing.has(name.toLowerCase()))
+    .map(name => ({ id: crypto.randomUUID(), name }));
+  return [...saved, ...additions].slice(0, 36);
 }
 
 function loadChallenges(): Challenge[] {
@@ -137,7 +154,7 @@ function loadSituationChallenges(): SituationChallenge[] {
 const EventContext = createContext<EventContextProps | undefined>(undefined);
 
 export const EventProvider = ({ children }: { children: ReactNode }) => {
-  const [teams, setTeams] = useState<Team[]>(() => readJson<Team[]>('fhc_teams', []));
+  const [teams, setTeams] = useState<Team[]>(() => loadTeams());
   const [challenges, setChallenges] = useState<Challenge[]>(() => loadChallenges());
   const [assignments, setAssignments] = useState<Assignment[]>(() => readJson<Assignment[]>('fhc_assignments', []));
   const [situationChallenges, setSituationChallenges] = useState<SituationChallenge[]>(() => loadSituationChallenges());
@@ -199,7 +216,6 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const editTeam = (id: string, name: string): { success: boolean; error?: string } => {
-    if (isEventStarted) return { success: false, error: 'Event has started. Editing teams is locked.' };
     const trimmed = name.trim();
     if (!trimmed) return { success: false, error: 'Team name cannot be empty.' };
     if (teams.some(t => t.id !== id && t.name.toLowerCase() === trimmed.toLowerCase())) {
@@ -211,7 +227,6 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteTeam = (id: string) => {
-    if (isEventStarted) return;
     setTeams(prev => prev.filter(t => t.id !== id));
     if (currentTeamId === id) {
       setCurrentTeamId('');
@@ -219,7 +234,6 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const importTeamsCSV = (names: string[]): { success: boolean; count: number; duplicates: string[] } => {
-    if (isEventStarted) return { success: false, count: 0, duplicates: [] };
     let addedCount = 0;
     const duplicates: string[] = [];
     const updatedTeams = [...teams];
@@ -345,7 +359,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const resetEntireEvent = () => {
-    setTeams([]);
+    setTeams(loadTeams());
     setChallenges(DEFAULT_CHALLENGES);
     setAssignments([]);
     setSituationChallenges(DEFAULT_SITUATION_CHALLENGES);
