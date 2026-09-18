@@ -3,14 +3,20 @@ import { useEvent } from '../../context/EventContext';
 import { exportToCSV } from '../../utils/csvHelper';
 import { Search, Download, FileText, Calendar, ShieldAlert } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import * as XLSX from 'xlsx';
 
 export const AssignmentHistory: React.FC = () => {
-  const { assignments } = useEvent();
+  const { assignments, situationAssignments } = useEvent();
   const [searchQuery, setSearchQuery] = useState('');
+  const [phase, setPhase] = useState<'feature' | 'situation'>('feature');
 
-  const filteredAssignments = assignments.filter(item => 
+  const currentAssignments = phase === 'feature'
+    ? assignments.map(item => ({ id: item.id, teamName: item.teamName, taskTitle: item.challengeTitle, timestamp: item.timestamp }))
+    : situationAssignments.map(item => ({ id: item.id, teamName: item.teamName, taskTitle: item.situationTitle, timestamp: item.timestamp }));
+
+  const filteredAssignments = currentAssignments.filter(item => 
     item.teamName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.challengeTitle.toLowerCase().includes(searchQuery.toLowerCase())
+    item.taskTitle.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const formatTimestamp = (isoString: string) => {
@@ -25,13 +31,27 @@ export const AssignmentHistory: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    const csvData = assignments.map((item, idx) => ({
+    const csvData = currentAssignments.map((item, idx) => ({
       Rank: idx + 1,
       Team: item.teamName,
-      'Assigned Challenge': item.challengeTitle,
+      [phase === 'feature' ? 'Assigned Feature' : 'Assigned Situation']: item.taskTitle,
       Timestamp: formatTimestamp(item.timestamp)
     }));
-    exportToCSV(csvData, 'fhc_lightning_assignments.csv');
+    exportToCSV(csvData, phase === 'feature' ? 'phase_1_feature_assignments.csv' : 'phase_2_situation_assignments.csv');
+  };
+
+  const handleExportXLSX = () => {
+    const rows = currentAssignments.map((item, idx) => ({
+      'Assignment #': idx + 1,
+      Team: item.teamName,
+      [phase === 'feature' ? 'Feature Challenge' : 'Situation Challenge']: item.taskTitle,
+      Assigned: formatTimestamp(item.timestamp)
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet['!cols'] = [{ wch: 16 }, { wch: 28 }, { wch: 34 }, { wch: 24 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, phase === 'feature' ? 'Phase 1 Features' : 'Phase 2 Situations');
+    XLSX.writeFile(workbook, phase === 'feature' ? 'phase_1_feature_assignments.xlsx' : 'phase_2_situation_assignments.xlsx');
   };
 
   const handleExportPDF = () => {
@@ -80,7 +100,7 @@ export const AssignmentHistory: React.FC = () => {
         <div className="flex items-center space-x-3">
           <button
             onClick={handleExportCSV}
-            disabled={assignments.length === 0}
+            disabled={currentAssignments.length === 0}
             className="bg-dark-900 border border-white/10 hover:border-brand-purple-500/40 text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center space-x-1.5 disabled:opacity-40 disabled:hover:border-white/10 disabled:cursor-not-allowed transition-all"
           >
             <Download className="w-3.5 h-3.5 text-brand-purple-400" />
@@ -89,13 +109,26 @@ export const AssignmentHistory: React.FC = () => {
           
           <button
             onClick={handleExportPDF}
-            disabled={assignments.length === 0}
+            disabled={currentAssignments.length === 0}
             className="bg-dark-900 border border-white/10 hover:border-brand-cyan-500/40 text-white text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center space-x-1.5 disabled:opacity-40 disabled:hover:border-white/10 disabled:cursor-not-allowed transition-all"
           >
             <FileText className="w-3.5 h-3.5 text-brand-cyan-400" />
             <span>Export PDF Report</span>
           </button>
+          <button
+            onClick={handleExportXLSX}
+            disabled={currentAssignments.length === 0}
+            className="bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400/70 text-emerald-200 text-xs font-semibold px-4 py-2.5 rounded-xl flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export XLSX</span>
+          </button>
         </div>
+      </div>
+
+      <div className="flex w-fit rounded-xl border border-white/10 bg-dark-900/60 p-1">
+        <button onClick={() => setPhase('feature')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${phase === 'feature' ? 'bg-brand-purple-600 text-white' : 'text-white/60 hover:text-white'}`}>Phase 1 · Features</button>
+        <button onClick={() => setPhase('situation')} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${phase === 'situation' ? 'bg-orange-600 text-white' : 'text-white/60 hover:text-white'}`}>Phase 2 · Situations</button>
       </div>
 
       {/* Search inputs */}
@@ -118,7 +151,7 @@ export const AssignmentHistory: React.FC = () => {
               <tr className="border-b border-white/5 bg-white/[0.02] text-xs font-bold text-white/50 uppercase tracking-wider">
                 <th className="px-6 py-4">Index</th>
                 <th className="px-6 py-4">Team Name</th>
-                <th className="px-6 py-4">Assigned Lightning Feature</th>
+                <th className="px-6 py-4">{phase === 'feature' ? 'Assigned Feature' : 'Assigned Situation'}</th>
                 <th className="px-6 py-4">Timestamp</th>
               </tr>
             </thead>
@@ -140,7 +173,7 @@ export const AssignmentHistory: React.FC = () => {
                     <td className="px-6 py-4 font-bold text-white">{item.teamName}</td>
                     <td className="px-6 py-4">
                       <span className="inline-block bg-brand-purple-500/10 text-brand-purple-300 border border-brand-purple-500/20 px-3 py-1 rounded-full text-xs font-semibold">
-                        {item.challengeTitle}
+                        {item.taskTitle}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-white/40 text-xs">{formatTimestamp(item.timestamp)}</td>
@@ -171,7 +204,7 @@ export const AssignmentHistory: React.FC = () => {
 
         <div className="space-y-6">
           <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200 flex justify-between text-xs font-bold text-zinc-600">
-            <span>Total Team Assignments: {assignments.length}</span>
+            <span>Total {phase === 'feature' ? 'Feature' : 'Situation'} Assignments: {currentAssignments.length}</span>
             <span>Generated Programmatically</span>
           </div>
 
@@ -180,16 +213,16 @@ export const AssignmentHistory: React.FC = () => {
               <tr className="border-b-2 border-zinc-300 bg-zinc-100 font-bold text-zinc-700 uppercase">
                 <th className="p-3">Rank</th>
                 <th className="p-3">Team</th>
-                <th className="p-3">Assigned Lightning Feature</th>
+                <th className="p-3">{phase === 'feature' ? 'Assigned Feature' : 'Assigned Situation'}</th>
                 <th className="p-3">Timestamp</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 text-zinc-800">
-              {assignments.map((item, idx) => (
+              {currentAssignments.map((item, idx) => (
                 <tr key={item.id}>
                   <td className="p-3 font-mono font-bold">{idx + 1}</td>
                   <td className="p-3 font-bold text-zinc-900">{item.teamName}</td>
-                  <td className="p-3 font-semibold">{item.challengeTitle}</td>
+                  <td className="p-3 font-semibold">{item.taskTitle}</td>
                   <td className="p-3 text-zinc-500">{new Date(item.timestamp).toLocaleString()}</td>
                 </tr>
               ))}
